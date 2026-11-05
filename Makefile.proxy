@@ -1,0 +1,51 @@
+# Proxy wrapper around the unmodified repo Makefile.
+# Usage: make -f Makefile.proxy <target>
+RUN := ./proxy/with-proxy.sh
+
+host-setup:
+	@ sudo ./proxy/host-setup.sh
+
+preflight:
+	@ $(RUN) ./proxy/preflight.sh
+
+tools:
+	@ $(RUN) ./proxy/install-cf.sh
+
+# LOCAL_DEPLOYMENT stays true for every domain: this is always a kind cluster. The repo
+# Makefile would turn it off, and with it the CNI, for any domain but the default.
+up: preflight tools
+	@ $(RUN) $(MAKE) -f Makefile create-kind init
+	@ $(RUN) ./proxy/coredns.sh
+	@ $(RUN) $(MAKE) -f Makefile install LOCAL_DEPLOYMENT=true
+
+down:
+	@ $(RUN) $(MAKE) -f Makefile down
+
+login:
+	@ $(RUN) $(MAKE) -f Makefile login
+
+bootstrap: cf-proxy
+	@ $(RUN) $(MAKE) -f Makefile bootstrap
+
+bootstrap-complete: cf-proxy
+	@ $(RUN) $(MAKE) -f Makefile bootstrap-complete
+
+cf-proxy:
+	@ $(RUN) ./proxy/cf-proxy.sh
+
+verify:
+	@ $(RUN) ./proxy/verify.sh
+
+stratos:
+	@ $(RUN) ./proxy/stratos.sh
+
+hosts:
+	@ $(RUN) ./proxy/hosts.sh
+
+smoke:
+	@ $(RUN) $(MAKE) -f Makefile smoke
+
+shell:
+	@ $(RUN) bash
+
+.PHONY: host-setup preflight tools up down login bootstrap bootstrap-complete cf-proxy verify stratos hosts smoke shell
