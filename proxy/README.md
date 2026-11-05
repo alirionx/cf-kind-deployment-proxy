@@ -120,6 +120,43 @@ cf api https://api.cf.cf-test.example.internal --skip-ssl-validation
 cf login
 ```
 
+## Use your own certificate
+
+By default CF serves a generated certificate, so browsers warn and `cf` needs `--skip-ssl-validation`. To serve your own certificate instead, put these files into `proxy/tls/` on the server:
+
+| File | Content |
+|---|---|
+| `tls.crt` | The certificate |
+| `tls.key` | Its private key |
+| `ca.crt` | The CA certificate, only needed for a private CA |
+
+The certificate must cover these names, because a wildcard covers only one level:
+
+- `*.cf.<domain>`
+- `*.apps.<domain>`
+- `*.blobstore.cf.<domain>`
+
+Then run this after `login`:
+
+```bash
+make -f Makefile.proxy tls
+```
+
+The command checks the files before it changes anything. It only replaces the certificate on the gateway. The generated certificate stays in use inside CF. Git ignores `proxy/tls/`.
+
+With a private CA, every client must trust that CA. After that, log in without the skip option:
+
+```bash
+cf login -a https://api.cf.<domain>
+```
+
+Run the command again in these cases:
+
+- The certificate was renewed. Copy the new files first.
+- `make -f Makefile.proxy up` ran again, because it resets the gateway.
+
+Apps other than Stratos read the CA when they start, so restart any app that calls CF itself.
+
 ## Work with CF
 
 On the server, always use the CF CLI in this shell:
@@ -140,6 +177,20 @@ make -f Makefile.proxy down
 
 This deletes the cluster and `temp/`, including all apps and passwords. The image caches stay, so the next start is faster.
 
+## Restart the server
+
+CF comes back after a reboot of the server without any action. Do not run `up` again. In the test, the API answered after about 2 minutes and Stratos after about 3.
+
+Until then, the API and apps can answer with 503 or 404, and pods show `Error` or `Unknown` and restart several times. This is normal while the components wait for each other.
+
+To check the result:
+
+```bash
+make -f Makefile.proxy verify
+```
+
+The server IP must stay the same, so use a static address or a DHCP reservation. If the proxy IP changes, run `make -f Makefile.proxy cf-proxy`.
+
 ## Troubleshooting
 
 | Message | Cause and fix |
@@ -156,4 +207,7 @@ This deletes the cluster and `temp/`, including all apps and passwords. The imag
 ## Limitations
 
 - The proxy address is stored in the CF environment variables. If it contains a password, users with app access can read it.
-- The flow with a proxy is fully tested, including with a custom domain and from a second machine. Without a proxy, only the host check was tested, not the full flow with `Makefile.proxy`.
+- The flow with a proxy is fully tested, including with a custom domain and from a second machine.
+- The flow without a proxy is tested with a custom domain, including `verify` after a server reboot. A reboot with a proxy is not tested yet.
+- A custom certificate is tested without a proxy and with a private CA, but not with a proxy or a public CA.
+- The generated certificates are valid for 365 days. A custom certificate does not replace them inside CF, so the deployment has to be rebuilt before they expire.

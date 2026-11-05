@@ -39,6 +39,9 @@ verify:
 stratos:
 	@ $(RUN) ./proxy/stratos.sh
 
+tls:
+	@ $(RUN) ./proxy/tls.sh
+
 hosts:
 	@ $(RUN) ./proxy/hosts.sh
 
@@ -48,4 +51,4 @@ smoke:
 shell:
 	@ $(RUN) bash
 
-.PHONY: host-setup preflight tools up down login bootstrap bootstrap-complete cf-proxy verify stratos hosts smoke shell
+.PHONY: host-setup preflight tools up down login bootstrap bootstrap-complete cf-proxy verify stratos tls hosts smoke shell
