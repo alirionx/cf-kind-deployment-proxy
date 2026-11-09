@@ -1,0 +1,90 @@
+# Functional test of the proxy wrapper (Makefile.proxy, proxy/).
+# Runs on every push and on demand, never on a schedule.
+# The runner has direct internet access, so this covers the flow without a proxy.
+# The proxy flow still needs a manual test on a real server.
+name: Wrapper functional test
+
+on:
+  push:
+    paths-ignore:
+      - "**.md"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: shellcheck
+        run: shellcheck --severity=warning -x proxy/*.sh
+      - name: Makefile.proxy parses
+        run: make -n -f Makefile.proxy up login bootstrap stratos tls verify > /dev/null
+
+  e2e:
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      CLUSTER_DOMAIN: 127-0-0-1.nip.io
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Host setup
+        run: make -f Makefile.proxy host-setup
+
+      - name: Start CF
+        run: |
+          make -f Makefile.proxy up
+          sed 's/^[^=]*=/::add-mask::/' temp/secrets.env
+
+      - name: Log in and bootstrap
+        run: make -f Makefile.proxy login bootstrap
+
+      - name: Install Stratos
+        run: make -f Makefile.proxy stratos
+
+      - name: Verify with the generated certificate
+        run: make -f Makefile.proxy verify
+
+      - name: Create a test certificate
+        run: |
+          d=proxy/tls
+          mkdir -p "$d"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=CI test CA" \
+            -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign" \
+            -keyout "$d/ca.key" -out "$d/ca.crt"
+          openssl req -newkey rsa:2048 -nodes -subj "/CN=*.cf.$CLUSTER_DOMAIN" \
+            -keyout "$d/tls.key" -out "$d/tls.csr"
+          printf 'subjectAltName=DNS:*.cf.%s,DNS:*.apps.%s,DNS:*.blobstore.cf.%s\nextendedKeyUsage=serverAuth\n' \
+            "$CLUSTER_DOMAIN" "$CLUSTER_DOMAIN" "$CLUSTER_DOMAIN" > "$d/ext.cnf"
+          openssl x509 -req -in "$d/tls.csr" -CA "$d/ca.crt" -CAkey "$d/ca.key" -CAcreateserial \
+            -days 2 -extfile "$d/ext.cnf" -out "$d/tls.crt"
+          rm -f "$d/ca.key" "$d/ca.srl" "$d/tls.csr" "$d/ext.cnf"
+
+      - name: Serve the test certificate
+        run: make -f Makefile.proxy tls
+
+      - name: Check the certificate without skipping verification
+        run: |
+          for url in "https://api.cf.$CLUSTER_DOMAIN/v3/info" "https://console.apps.$CLUSTER_DOMAIN/"; do
+            curl -fsS --retry 10 --retry-delay 6 --retry-all-errors --cacert proxy/tls/ca.crt -o /dev/null "$url"
+            echo "ok: $url"
+          done
+
+      - name: Verify with the test certificate
+        run: make -f Makefile.proxy verify
+
+      - name: Debug info
+        if: failure()
+        run: |
+          ./proxy/with-proxy.sh kubectl get pods -A -o wide || true
+          ./proxy/with-proxy.sh kubectl get events -A --sort-by=.lastTimestamp | tail -60 || true
+          ./proxy/with-proxy.sh cf apps || true

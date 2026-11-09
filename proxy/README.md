@@ -191,6 +191,18 @@ make -f Makefile.proxy verify
 
 The server IP must stay the same, so use a static address or a DHCP reservation. If the proxy IP changes, run `make -f Makefile.proxy cf-proxy`.
 
+If Stratos still crashes after a few minutes with `i/o timeout` to the gateway, the Cilium agent on a node has missed some pod addresses after the reboot, so the app is not allowed to reach them. Restart the Cilium agents and then Stratos:
+
+```bash
+make -f Makefile.proxy shell
+kubectl -n kube-system delete pod -l k8s-app=cilium
+kubectl -n kube-system rollout status daemonset/cilium
+cf restart console
+make -f Makefile.proxy verify
+```
+
+In the test, only the agent on the node that runs the apps was affected, but restarting all of them is safe.
+
 ## Troubleshooting
 
 | Message | Cause and fix |
@@ -207,7 +219,8 @@ The server IP must stay the same, so use a static address or a DHCP reservation.
 ## Limitations
 
 - The proxy address is stored in the CF environment variables. If it contains a password, users with app access can read it.
-- The flow with a proxy is fully tested, including with a custom domain and from a second machine.
+- The flow with a proxy is fully tested, including with a custom domain and from a second machine. It is not part of the automated test.
+- On every push, `.github/workflows/proxy-e2e.yaml` tests the flow without a proxy on a GitHub runner: `up`, `bootstrap`, `stratos`, `verify`, and `tls` with a test certificate.
 - The flow without a proxy is tested with a custom domain, including `verify` after a server reboot. A reboot with a proxy is not tested yet.
 - A custom certificate is tested without a proxy and with a private CA, but not with a proxy or a public CA.
 - The generated certificates are valid for 365 days. A custom certificate does not replace them inside CF, so the deployment has to be rebuilt before they expire.
