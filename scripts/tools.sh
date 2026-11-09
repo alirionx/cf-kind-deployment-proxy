@@ -4,7 +4,7 @@ set -e
 set -o pipefail
 
 # renovate: dataSource=github-releases depName=helmfile/helmfile
-export HELMFILE_VERSION="1.8.2"
+export HELMFILE_VERSION="1.8.3"
 # renovate: dataSource=github-releases depName=helm/helm
 export HELM_VERSION="4.3.1"
 # renovate: dataSource=github-releases depName=kubernetes-sigs/kind
@@ -14,7 +14,7 @@ export KUBECTL_VERSION="1.36.2"
 # renovate: dataSource=github-releases depName=google/go-containerregistry
 export CRANE_VERSION="0.22.1"
 # renovate: dataSource=github-releases depName=mikefarah/yq
-export YQ_VERSION="4.54.1"
+export YQ_VERSION="4.54.3"
 
 export TOOLS_BIN_DIR="$(realpath $(dirname "${BASH_SOURCE[0]}"))/../bin"
 
