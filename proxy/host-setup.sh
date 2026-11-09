@@ -12,6 +12,20 @@ fs.inotify.max_user_watches=524288
 CONF
 sysctl -q --system
 
+# Some containerd packages (for example on Debian 13) set LimitNOFILE=infinity. Containers
+# then get about a billion open files, and rpc.mountd in the nfs-server container allocates
+# memory for all of them until the host runs out of memory.
+if [[ "$(systemctl show containerd -p LimitNOFILE --value 2>/dev/null)" == infinity ]]; then
+  echo "Limiting open files for containers..."
+  mkdir -p /etc/systemd/system/containerd.service.d
+  cat > /etc/systemd/system/containerd.service.d/cf-kind.conf <<CONF
+[Service]
+LimitNOFILE=1048576
+CONF
+  systemctl daemon-reload
+  systemctl restart containerd docker
+fi
+
 echo "Loading NFS kernel modules..."
 printf 'nfs\nnfsd\n' > /etc/modules-load.d/cf-kind.conf
 modprobe nfs
@@ -25,6 +39,10 @@ fi
 # The upstream DNS fails or filters answers pointing to private addresses, so the domain
 # is answered locally and everything else keeps going to the existing DNS servers.
 # This only covers the server itself: other machines need their own working DNS.
+if ! systemctl is-active -q systemd-resolved; then
+  echo "systemd-resolved is not running. Install it, or add a DNS entry *.$CLUSTER_DOMAIN -> $CF_HOST_IP." >&2
+  exit 1
+fi
 echo "Setting up local DNS for *.$CLUSTER_DOMAIN..."
 mkdir -p /etc/dnsmasq.d /etc/systemd/resolved.conf.d
 cat > /etc/dnsmasq.d/cf-kind.conf <<CONF

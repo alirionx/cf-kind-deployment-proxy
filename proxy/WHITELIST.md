@@ -4,6 +4,8 @@ The proxy must allow these hosts for the server, so that the local Cloud Foundry
 
 The server only connects through the proxy over HTTP(S). It needs `CONNECT` on port 443, and HTTP on port 80 for the Ubuntu package sources.
 
+The list was checked on Ubuntu and on Debian 13.
+
 ## Container images
 
 | Host | Port | Purpose |
@@ -48,12 +50,15 @@ The server only connects through the proxy over HTTP(S). It needs `CONNECT` on p
 | `buildpacks.cloudfoundry.org` | 443 | Buildpack runtimes such as Node.js and Python |
 | `registry.npmjs.org` | 443 | npm packages |
 
-## Ubuntu packages
+## Operating system packages
+
+Only the hosts of your distribution are needed. `preflight` does not check this section.
 
 | Host | Port | Purpose |
 |---|---|---|
-| `archive.ubuntu.com` | 80 | Package sources |
-| `security.ubuntu.com` | 80 | Security updates |
+| `archive.ubuntu.com` | 80 | Ubuntu package sources |
+| `security.ubuntu.com` | 80 | Ubuntu security updates |
+| `deb.debian.org` | 443 | Debian package sources and security updates |
 
 ## Recommended wildcards
 
@@ -69,4 +74,4 @@ If wildcards are not possible, the proxy log shows the blocked hosts after a fai
 
 This list covers the installation, Stratos and Node.js apps. Other apps may need further targets during `cf push`, for example Maven Central or PyPI.
 
-The Ubuntu package sources are only needed to set up the server.
+The package sources are only needed to set up and update the server. On Debian, check `/etc/apt/sources.list.d/`: if it uses `security.debian.org` or plain `http://`, allow that host or port as well.

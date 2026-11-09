@@ -11,7 +11,7 @@ echo "Tools"
 for tool in docker make curl jq tar; do
   command -v "$tool" >/dev/null && ok "$tool" || fail "$tool is missing"
 done
-docker compose version >/dev/null 2>&1 && ok "docker compose" || fail "docker compose is missing (package docker-compose-v2)"
+docker compose version >/dev/null 2>&1 && ok "docker compose" || fail "docker compose is missing (package docker-compose-v2 on Ubuntu, docker-compose on Debian)"
 
 echo "Docker daemon"
 if daemon_proxy="$(docker info --format '{{.HTTPSProxy}}' 2>/dev/null)"; then
@@ -40,6 +40,8 @@ fi
 
 echo "Internet access"
 # Every host from the whitelist file: first column of its tables, then the port.
+# The package sources are skipped: they are only needed to set up the server, and a
+# proxy that denies plain HTTP answers with its own status code, which looks like success.
 while read -r host port; do
   [[ "$port" == 80 ]] && url="http://$host/" || url="https://$host/"
   code="$(curl -sS -m 15 -o /dev/null -w '%{http_code}' "$url" 2>/tmp/preflight.$$)"
@@ -50,14 +52,18 @@ while read -r host port; do
   else
     fail "$host: $(tail -1 /tmp/preflight.$$)"
   fi
-done < <(awk -F'|' '/^\| `/ {gsub(/[` ]/, "", $2); gsub(/ /, "", $3); print $2, $3}' proxy/WHITELIST.md)
+done < <(awk -F'|' '/^## / {skip = /^## Operating system packages/}
+  !skip && /^\| `/ {gsub(/[` ]/, "", $2); gsub(/ /, "", $3); print $2, $3}' proxy/WHITELIST.md)
 rm -f /tmp/preflight.$$
 
 echo "Host settings (fix with: make -f Makefile.proxy host-setup)"
-instances="$(sysctl -n fs.inotify.max_user_instances)"
-watches="$(sysctl -n fs.inotify.max_user_watches)"
+# Read from /proc: sysctl is in /usr/sbin, which is not in the PATH of normal users on Debian.
+instances="$(cat /proc/sys/fs/inotify/max_user_instances)"
+watches="$(cat /proc/sys/fs/inotify/max_user_watches)"
 [[ "$instances" -ge 512 && "$watches" -ge 524288 ]] && ok "inotify limits" \
   || fail "inotify limits too low ($instances/$watches, need 512/524288)"
+[[ "$(systemctl show containerd -p LimitNOFILE --value 2>/dev/null)" != infinity ]] && ok "open files limit for containers" \
+  || fail "containerd has LimitNOFILE=infinity, the nfs-server container would use up all memory"
 if [[ "${INSTALL_OPTIONAL_COMPONENTS:-true}" == "true" ]]; then
   for module in nfs nfsd; do
     grep -qE "^$module " /proc/modules && ok "kernel module $module" || fail "kernel module $module is not loaded"

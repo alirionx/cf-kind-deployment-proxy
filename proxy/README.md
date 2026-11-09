@@ -6,7 +6,8 @@ The commands are the same in both cases. `Makefile.proxy` detects the proxy from
 
 ## Prerequisites
 
-- Ubuntu with `docker.io`, `docker-compose-v2`, `make`, `curl` and `jq`
+- Ubuntu with `docker.io`, `docker-compose-v2`, `make`, `curl` and `jq`, or Debian 13 with `docker.io`, `docker-compose`, `make`, `curl` and `jq`
+- `systemd-resolved`, if the domain has no DNS entry yet (see [Set the domain](#set-the-domain))
 - Your user is in the `docker` group
 - At least 8 CPU cores, 16 GB RAM and 100 GB disk
 
@@ -22,6 +23,12 @@ With a proxy, you also need:
 
 - The proxy set for the Docker service, for example in `/etc/systemd/system/docker.service.d/http-proxy.conf`
 - All hosts from [WHITELIST.md](WHITELIST.md) allowed on the proxy
+- On Debian, the proxy for `apt` in `/etc/apt/apt.conf.d/95proxy`, because `sudo` does not read `/etc/environment` there:
+
+  ```
+  Acquire::http::Proxy "http://proxy.example:3128";
+  Acquire::https::Proxy "http://proxy.example:3128";
+  ```
 
 ## Set the domain
 
@@ -219,8 +226,8 @@ In the test, only the agent on the node that runs the apps was affected, but res
 ## Limitations
 
 - The proxy address is stored in the CF environment variables. If it contains a password, users with app access can read it.
-- The flow with a proxy is fully tested, including with a custom domain and from a second machine. It is not part of the automated test.
+- The flow with a proxy is fully tested on Ubuntu and Debian 13, including with a custom domain and from a second machine. On Debian 13, `verify` after a server reboot is tested as well. It is not part of the automated test.
 - On every push, `.github/workflows/proxy-e2e.yaml` tests the flow without a proxy on a GitHub runner: `up`, `bootstrap`, `stratos`, `verify`, and `tls` with a test certificate.
-- The flow without a proxy is tested with a custom domain, including `verify` after a server reboot. A reboot with a proxy is not tested yet.
+- The flow without a proxy is tested with a custom domain, including `verify` after a server reboot.
 - A custom certificate is tested without a proxy and with a private CA, but not with a proxy or a public CA.
 - The generated certificates are valid for 365 days. A custom certificate does not replace them inside CF, so the deployment has to be rebuilt before they expire.
