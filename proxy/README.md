@@ -229,5 +229,5 @@ In the test, only the agent on the node that runs the apps was affected, but res
 - The flow with a proxy is fully tested on Ubuntu and Debian 13, including with a custom domain and from a second machine. On Debian 13, `verify` after a server reboot is tested as well. It is not part of the automated test.
 - On every push, `.github/workflows/proxy-e2e.yaml` tests the flow without a proxy on a GitHub runner: `up`, `bootstrap`, `stratos`, `verify`, and `tls` with a test certificate.
 - The flow without a proxy is tested with a custom domain, including `verify` after a server reboot.
-- A custom certificate is tested without a proxy and with a private CA, but not with a proxy or a public CA.
+- A custom certificate is tested with and without a proxy, with a private CA, but not with a public CA.
 - The generated certificates are valid for 365 days. A custom certificate does not replace them inside CF, so the deployment has to be rebuilt before they expire.
